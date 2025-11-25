@@ -13,6 +13,24 @@ QUOTES = [
     {"text": "Fall seven times, stand up eight.", "author": "Japanese Proverb", "category": "perseverance", "lang": "en"},
 ]
 
+def validate_query_params(args):
+    """
+    Validate the allowed parameters for the /quote endpoint.
+    """
+    allowed = {"category", "lang"}
+    for key in args.keys():
+        if key not in allowed:
+            return None, None, ("UNSUPPORTED_PARAMETER", "Only 'category' and 'lang' are supported.", 400)
+
+    category = args.get("category")
+    lang = args.get("lang")
+    return category, lang, None
+
+
+def build_error_response(error_code, message, http_status):
+    """Return a standardized error JSON response."""
+    return jsonify({"error": error_code, "message": message}), http_status
+
 def pick_quote(category=None, lang=None):
     pool = QUOTES
     if category:
@@ -30,17 +48,14 @@ def get_quote():
     Returns: 200 JSON { quote, author, category, lang, service, version }
     Errors: 404 if no quote matches filters, 400 if unsupported params
     """
-    category = request.args.get("category")
-    lang = request.args.get("lang")
-
-    # contract: only these two query params are accepted
-    allowed = {"category", "lang"}
-    if any(k not in allowed for k in request.args.keys()):
-        return jsonify({"error": "UNSUPPORTED_PARAMETER", "message": "Only 'category' and 'lang' are supported."}), 400
+    category, lang, err = validate_query_params(request.args)
+    if err:
+        error_code, message, status = err
+        return build_error_response(error_code, message, status)
 
     q = pick_quote(category, lang)
     if not q:
-        return jsonify({"error": "NOT_FOUND", "message": "No quote matches the filters."}), 404
+        return build_error_response("NOT_FOUND", "No quote matches the filters.", 404)
 
     return jsonify({
         "quote": q["text"],
